@@ -139,13 +139,34 @@ add (
 
 select * 
 from fait_vente 
-where 
-id_facture = 3 
-or
-id_facture = 45 
-or
-id_facture = 80;
+where id_facture = 3 
+or id_facture = 45 
+or id_facture = 80;
 
 --On a bien les produits 61, 20 et 80.
 
+
+-- 4
+  
+  
+create bitmap index index_produit_categorie
+on produit_dim (categorie);
+
+create bitmap index index_produit_souscategorie
+on produit_dim (souscategorie);
+
+create bitmap index index_client_sexe
+on client_dim (sexe);
+
+create bitmap index index_client_tranche
+on client_dim (tranche_age);
+
+create bitmap index index_temps_lib_jour
+on temps_dim (lib_jour);
+
+create bitmap index index_temps_mois
+on temps_dim (mois);
+
+create bitmap index index_temps_num_mois
+on temps_dim (num_mois);
 
