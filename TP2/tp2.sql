@@ -1,3 +1,6 @@
+DROP dimension dim_produit;
+DROP dimension dim_temps;
+
 DROP materialized VIEW log on client;
 DROP materialized VIEW log on facture;
 DROP materialized VIEW log on produit;
@@ -147,8 +150,7 @@ or id_facture = 80;
 
 
 -- 4
-  
-  
+
 create bitmap index index_produit_categorie
 on produit_dim (categorie);
 
@@ -169,4 +171,42 @@ on temps_dim (mois);
 
 create bitmap index index_temps_num_mois
 on temps_dim (num_mois);
+
+-- 5
+
+create dimension dim_produit
+level produit is(produit_dim.id_prod)
+level souscategorie is(produit_dim.souscategorie)
+level categorie is(produit_dim.categorie)
+hierarchy prod_rollup (produit child of souscategorie child of categorie);
+
+execute dbms_dimension.validate_dimension ('dim_produit', FALSE, TRUE, 'Test dim_produit');
+
+select * from produit
+where rowid in
+(select bad_rowid from dimension_exceptions where statement_id = 'Test dim_produit');
+
+
+create dimension dim_temps
+level annee is(temps_dim.annee)
+level mois is(temps_dim.mois)
+level semaine is (temps_dim.semaine_annee)
+level jour is (temps_dim.jour_annee)
+hierarchy prod_rollup
+(
+  jour child of semaine child of mois child of annee);
+
+  EXECUTE DBMS_DIMENSION.VALIDATE_DIMENSION ('dim_temps', FALSE, TRUE, 'Test dim_temps');
+
+  select * from temps
+  where rowid in
+  (select bad_rowid from DIMENSION_EXCEPTIONS where statement_id = 'Test dim_temps');
+
+
+
+
+
+
+
+
 
