@@ -1,5 +1,8 @@
 DROP dimension dim_produit;
 DROP dimension dim_temps;
+DROP dimension dim_lieu;
+DROP dimension dim_client;
+
 
 DROP materialized VIEW log on client;
 DROP materialized VIEW log on facture;
@@ -24,10 +27,10 @@ create materialized view log on produit;
 
 create materialized view produit_dim
 refresh fast on commit
-as select num as id_prod,
-regexp_substr(designation, '[^.]', 1, 1) as nom,
-regexp_substr(designation, '[^.]', 1, 2) as categorie,
-regexp_substr(designation, '[^.]', 1, 3) as souscategorie
+as select num as id_produit,
+regexp_substr(designation, '[^.]+', 1, 1) as nom,
+regexp_substr(designation, '[^.]+', 1, 2) as categorie,
+regexp_substr(designation, '[^.]+', 1, 3) as souscategorie
 from produit;
 -- drop materialized view produit_dim
 
@@ -116,7 +119,7 @@ add constraint  pk_dim_temps primary key (date_vente);
 
 --DEMANDER PROF POURQUOI PAS BESOIN ! POURQUOIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII ?!
 --alter materialized view produit_dim
---add constraint  pk_dim_produit primary key (id_prod);
+--add constraint  pk_dim_produit primary key (id_produit);
 
 alter materialized view client_dim
 add constraint  pk_dim_client primary key (id_client);
@@ -130,7 +133,7 @@ alter materialized view fait_vente
 add (
      constraint pk_fait_vente primary key (id_facture, date_vente, id_produit, id_adresse), 
      constraint fk_fait_vente_date foreign key (date_vente) references temps_dim (date_vente),
-     constraint fk_fait_vente_prod foreign key (id_produit) references produit_dim (id_prod),
+     constraint fk_fait_vente_prod foreign key (id_produit) references produit_dim (id_produit),
      constraint fk_fait_vente_client foreign key (id_client) references client_dim (id_client),
      constraint fk_fait_vente_lieu foreign key (id_adresse) references lieu_dim (id_adresse)
      );
@@ -175,16 +178,12 @@ on temps_dim (num_mois);
 -- 5
 
 create dimension dim_produit
-level produit is(produit_dim.id_prod)
+level produit is(produit_dim.id_produit)
 level souscategorie is(produit_dim.souscategorie)
 level categorie is(produit_dim.categorie)
 hierarchy prod_rollup (produit child of souscategorie child of categorie);
 
 execute dbms_dimension.validate_dimension ('dim_produit', FALSE, TRUE, 'Test dim_produit');
-
-select * from produit
-where rowid in
-(select bad_rowid from dimension_exceptions where statement_id = 'Test dim_produit');
 
 
 create dimension dim_temps
@@ -196,16 +195,56 @@ hierarchy prod_rollup
 (
   jour child of semaine child of mois child of annee);
 
-  EXECUTE DBMS_DIMENSION.VALIDATE_DIMENSION ('dim_temps', FALSE, TRUE, 'Test dim_temps');
-
-  select * from temps
-  where rowid in
-  (select bad_rowid from DIMENSION_EXCEPTIONS where statement_id = 'Test dim_temps');
+execute dbms_dimension.validate_dimension ('dim_temps', false, true, 'Test dim_temps');
 
 
+create dimension dim_lieu
+level ville is(lieu_dim.ville)
+level pays is(lieu_dim.pays)
+level zip is(lieu_dim.zip_code)
+hierarchy prod_rollup(zip child of ville child of pays);
+
+execute dbms_dimension.validate_dimension ('dim_lieu', false, true, 'Test dim_lieu');
 
 
+create dimension dim_client
+level age is(client_dim.age)
+level tranche_age is(client_dim.tranche_age)
+hierarchy prod_rollup(age child of tranche_age);
 
+execute dbms_dimension.validate_dimension ('dim_client', false, true, 'Test dim_client');
+
+
+-- Requêtes SQL
+
+--1
+SELECT id_produit, nom,  sum(prix_vente) as CA
+from fait_vente
+natural join produit_dim
+group by id_produit, nom
+order by CA desc;
+
+--2
+select categorie, mois ,sum(prix_vente) as CA 
+from fait_vente
+natural join produit_dim 
+natural join temps_dim
+group by rollup (categorie,mois);
+
+--3
+select tranche_age,sum(prix_vente) as CA,rank() over (order by sum(prix_vente) desc) as rang 
+from fait_vente
+natural join client_dim
+group by tranche_age;
+
+--4
+select * from (
+  select nom , sum(qte) as quantite_vendue, rank() over (order by  sum(qte) desc) as rang
+  from fait_vente
+  natural join produit_dim
+  group by nom
+  )
+where rang<=3;
 
 
 
